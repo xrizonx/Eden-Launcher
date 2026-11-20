@@ -60,7 +60,34 @@ Apply formatting with `.\tools\Format.ps1`. CSharpier 1.3.0 owns layout; never r
 .\tools\Publish.ps1
 ```
 
-This creates `artifacts/Eden-Launcher-win-x64.zip`.
+This creates `artifacts/Eden-Launcher-win-x64.zip` and the standalone
+`artifacts/publish/win-x64/Eden.Desktop.exe`. The Windows x64 publish is self-contained
+and bundles .NET and native dependencies into the EXE; some native components are
+extracted to a temporary directory on first launch.
+
+## Windows 11 CI/CD
+
+The [Windows 11 x64 workflow](.github/workflows/windows11-x64.yml) runs on a hosted
+Windows build runner for every pull request to `main`, push to `main`, and manual
+workflow dispatch. It installs the SDK pinned in `global.json`, restores tools and
+packages, builds the solution, runs the automated test suite, checks formatting,
+publishes the EXE and validates its Windows x64 executable header.
+
+After a successful run, select **Actions → Build Windows 11 x64 → the workflow run → Artifacts**
+to download either `Eden-Launcher-win-x64-exe` or `Eden-Launcher-win-x64-zip`.
+GitHub Actions artifact downloads themselves arrive as ZIPs. Extract them and
+launch `Eden.Desktop.exe` on 64-bit Windows 11. The portable distribution
+also includes this README and the `docs` directory.
+
+After merging to `main`, pushing a version tag such as `v1.0.0` triggers
+the same verification and automatically creates a GitHub Release with both
+`Eden.Desktop.exe` and `Eden-Launcher-win-x64.zip` as downloadable assets.
+No release is created for pull requests or ordinary branch pushes.
+
+The executable is **unsigned** until a code-signing certificate and signing
+process are configured; Windows SmartScreen may warn when it is downloaded.
+CI verifies compilation, tests and the PE architecture, not a full interactive
+login and game-launch session on Windows 11.
 
 ## Structure
 

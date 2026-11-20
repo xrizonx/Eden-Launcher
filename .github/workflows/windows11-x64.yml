@@ -1,0 +1,129 @@
+name: Build Windows 11 x64
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build and test Windows x64 executable
+    runs-on: windows-2025
+    timeout-minutes: 40
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Install pinned .NET SDK
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Install Python for formatting checks
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.11'
+
+      - name: Restore .NET tools
+        run: dotnet tool restore
+
+      - name: Restore NuGet packages
+        run: dotnet restore Eden.Launcher.slnx
+
+      - name: Build solution
+        run: dotnet build Eden.Launcher.slnx -c Release --no-restore
+
+      - name: Run automated tests
+        run: dotnet test Eden.Launcher.slnx -c Release --no-build
+
+      - name: Check formatting
+        shell: pwsh
+        run: ./tools/Format.ps1 -Check
+
+      - name: Publish self-contained Windows x64 executable
+        shell: pwsh
+        run: ./tools/Publish.ps1
+
+      - name: Validate Windows x64 executable
+        shell: pwsh
+        run: |
+          $exe = 'artifacts/publish/win-x64/Eden.Desktop.exe'
+          if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) {
+              throw "Published executable not found: $exe"
+          }
+          $stream = [System.IO.File]::OpenRead((Resolve-Path -LiteralPath $exe).Path)
+          $reader = [System.IO.BinaryReader]::new($stream)
+          try {
+              if ($stream.Length -lt 512 -or $reader.ReadUInt16() -ne 0x5A4D) {
+                  throw 'Published file is not a valid Windows MZ executable.'
+              }
+              [void]$stream.Seek(0x3C, [System.IO.SeekOrigin]::Begin)
+              $peOffset = $reader.ReadInt32()
+              if ($peOffset -lt 64 -or $peOffset -gt $stream.Length - 6) {
+                  throw 'Published file has an invalid PE header offset.'
+              }
+              [void]$stream.Seek($peOffset, [System.IO.SeekOrigin]::Begin)
+              if ($reader.ReadUInt32() -ne 0x00004550 -or $reader.ReadUInt16() -ne 0x8664) {
+                  throw 'Published executable is not a Windows x64 PE.'
+              }
+          }
+          finally {
+              $reader.Dispose()
+          }
+          Write-Host 'Validated Windows x64 PE: Eden.Desktop.exe'
+
+      - name: Upload standalone EXE
+        uses: actions/upload-artifact@v7
+        with:
+          name: Eden-Launcher-win-x64-exe
+          path: artifacts/publish/win-x64/Eden.Desktop.exe
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload portable ZIP
+        uses: actions/upload-artifact@v7
+        with:
+          name: Eden-Launcher-win-x64-zip
+          path: artifacts/Eden-Launcher-win-x64.zip
+          if-no-files-found: error
+          retention-days: 30
+
+  release:
+    name: Publish tagged release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download EXE
+        uses: actions/download-artifact@v8
+        with:
+          name: Eden-Launcher-win-x64-exe
+          path: release
+
+      - name: Download ZIP
+        uses: actions/download-artifact@v8
+        with:
+          name: Eden-Launcher-win-x64-zip
+          path: release
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            release/Eden.Desktop.exe \
+            release/Eden-Launcher-win-x64.zip \
+            --title "Eden Launcher $GITHUB_REF_NAME" \
+            --generate-notes --verify-tag
