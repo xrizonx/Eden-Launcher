@@ -21,15 +21,15 @@ jobs:
     timeout-minutes: 40
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install pinned .NET SDK
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
 
       - name: Install Python for formatting checks
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: '3.11'
 
@@ -82,7 +82,7 @@ jobs:
           Write-Host 'Validated Windows x64 PE: Eden.Desktop.exe'
 
       - name: Upload standalone EXE
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Eden-Launcher-win-x64-exe
           path: artifacts/publish/win-x64/Eden.Desktop.exe
@@ -90,7 +90,7 @@ jobs:
           retention-days: 30
 
       - name: Upload portable ZIP
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Eden-Launcher-win-x64-zip
           path: artifacts/Eden-Launcher-win-x64.zip
@@ -106,13 +106,13 @@ jobs:
       contents: write
     steps:
       - name: Download EXE
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: Eden-Launcher-win-x64-exe
           path: release
 
       - name: Download ZIP
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: Eden-Launcher-win-x64-zip
           path: release
